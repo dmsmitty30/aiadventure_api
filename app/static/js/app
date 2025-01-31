@@ -1,0 +1,35 @@
+<!-- templates/home.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adventure Creator</title>
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+    <h1>Welcome to the Adventure Creator App</h1>
+
+
+
+        <!-- Show activities if user is logged in -->
+        <h2>Your Adventures</h2>
+        <ul id="activities-list">
+            {% for adventure in adventures %}
+                <li>
+                    <h3>{{ adventure.title }}</h3>
+                    <button onclick="showDetails('{{ adventure.id }}')">Details</button>
+                    <div id="details-{{ adventure.id }}" class="activity-details" style="display:none;">
+                        <p><strong>Type:</strong> {{ adventure.type }}</p>
+                        <p><strong>Perspective:</strong> {{ adventure.perspective }}</p>
+                        <p><strong>Created:</strong> {{ adventure.createdAt }}</p>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+        <a href="/strava_logout"><button>Logout</button></a>
+
+    <script src="static/js/app.js"></script>
+</body>
+</html>
+
