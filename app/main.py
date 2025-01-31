@@ -34,7 +34,6 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     
     access_token = create_access_token( data={"sub": str(user_dict["_id"])} )
-    print(f"TOKEN: {access_token}")
     return {"access_token": access_token, "token_type": "bearer"}
 
 

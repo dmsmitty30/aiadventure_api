@@ -20,8 +20,6 @@ def hash_password(password: str) -> str:
 
 '''
 async def verify_password(plain_password: str, hashed_password: str) -> bool:
-    print (hash_password(plain_password))
-    print(hashed_password)
     return pwd_context.verify(plain_password, hashed_password)
 '''
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -44,7 +42,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def register_user(email: str, password: str):
-    print(email)
     hashed_password=hash_password(password)
     existing_user = await get_user_by_email(email)
     if not existing_user: 
@@ -56,8 +53,6 @@ async def register_user(email: str, password: str):
 async def login(email: str, plain_password: str):
     try: 
         existing_user = await get_user_by_email(email)
-        print(f"plain: {plain_password}")
-        print(f"stored hash: {existing_user["hashed_password"]}")
         await verify_password(plain_password, existing_user["hashed_password"])
         return {"msg": "Login successful."}
     except:

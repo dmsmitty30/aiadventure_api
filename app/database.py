@@ -18,40 +18,29 @@ async def get_user_collection() -> Collection:
 async def get_user_by_id(user_id) -> Collection:
     try:
         user_collection = await get_user_collection()
-        print("got user collection")
         user = await user_collection.find_one({"_id":ObjectId(user_id)}, {"email": 1, "hashed_password": 0})
-        #print(f"user: {user}")
         if not user:
-            print(f"No user {user_id}")
             return None
         else:
-            print(f"Found user {user_id}")
             return user
     except Exception as e:
-        print(f"DB Error getting users from user collection: {e}")
         return None
 
 async def get_user_by_email(email) -> Collection:
     try:
         user_collection = await get_user_collection()
-        print("got user collection")
         user = await user_collection.find_one({"email":email})
-        #print(f"user: {user}")
         if not user:
-            print(f"No user {email}")
             return None
         else:
-            print(f"Found user {email}")
             return user
     except Exception as e:
-        print(f"DB Error getting users from user collection: {e}")
         return None
 
 
 async def create_user(email, hashed_password, createdAt):
     try:
         user_collection= await get_user_collection()
-        print("inserting...")
         user={
         "email": email,
         "hashed_password":hashed_password,
@@ -61,7 +50,6 @@ async def create_user(email, hashed_password, createdAt):
         object_id = result.inserted_id
         return object_id
     except Exception as e:
-        print(f"Error Creating User {email}: {e}")
         return None
 
 
@@ -73,7 +61,6 @@ def get_adventure_collection() -> Collection:
 
 async def get_all_adventures(owner_id):
     collection=db["adventures"]
-    print(f"DB OWNERID {owner_id}")
     cursor = collection.find({"$or": [{"owner_id": owner_id}, {"is_public": True}]})  # Asynchronous cursor
     adventures = await cursor.to_list(length=None)  # Await the cursor and convert it to a list
     return adventures
@@ -97,7 +84,6 @@ async def get_adventure_by_id(adventure_id: str) -> Optional[dict]:
         adventure = await adventure_collection.find_one({"_id": ObjectId(adventure_id)})
         return adventure
     except Exception as e:
-        print(f"Error retrieving adventure: {e}")
         return None
 
 async def create_adventure(adventure: dict):
@@ -115,7 +101,6 @@ async def update_adventure_nodes(adventure_id: str, data: dict):
         )
         return result.raw_result
     except Exception as e:
-        print(f"Error updating document: {e}")
         return None
 
 # Helper to access Node Collections
@@ -140,7 +125,6 @@ async def get_node_by_id(node_id: str) -> Optional[dict]:
         node = await node_collection.find_one({"_id": ObjectId(node_id)})
         return node
     except Exception as e:
-        print(f"Error retrieving node: {e}")
         return None
 
 async def get_node_by_level(adventure_id: str, level: int) -> Optional[dict]:
@@ -161,7 +145,6 @@ async def get_node_by_level(adventure_id: str, level: int) -> Optional[dict]:
         node = await node_collection.find_one({"_id": ObjectId(adventure_id), "level": level})
         return node
     except Exception as e:
-        print(f"Error retrieving node: {e}")
         return None
 
 async def delete_adventure(adventure_id: str):
@@ -172,10 +155,8 @@ async def delete_adventure(adventure_id: str):
         result = await db["adventures"].delete_one(
             {"_id": ObjectId(adventure_id)},  # Match document by _id
         )
-        #print(result)
         return result.raw_result
     except Exception as e:
-        print(f"Error updating document: {e}")
         return None
 
 
@@ -188,14 +169,11 @@ async def truncate_adventure(adventure_id: str, node_index: int):
         doc = await get_adventure_by_id(adventure_id)
         if doc and "nodes" in doc:
             truncated_nodes = doc["nodes"][:node_index]
-            #print(truncated_nodes)
             result = await db["adventures"].update_one(
                 {"_id": ObjectId(adventure_id)},
                 {"$set": {"nodes": truncated_nodes}}
             )
-            #print(result)
             return result.raw_result
     except Exception as e:
-        print(f"Error updating document: {e}")
         return None
 
