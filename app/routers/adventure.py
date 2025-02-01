@@ -77,20 +77,24 @@ async def start_adventure(adventure: AdventureCreate, token: Annotated[str, Depe
     new_image = await askDallE_structured(prompt,"1024x1792")    
     image_url = new_image.data[0].url # This is a temporary ChatGPT URL. Expires in 60 minutes.
     s3_image_details = await process_image(image_url)
-
+    
+    image_bucket_name = s3_image_details["bucket_name"]
+    image_s3_key = s3_image_details["s3_key"]
+    
     options=new_story.get("options")
+    createdAt = datetime.utcnow()
     adventure = {
         "owner_id": user_id,
         "title": new_story["title"],
         "synopsis": new_story["synopsis"],
         "userPrompt": prompt,
-        "createdAt": datetime.utcnow(),
+        "createdAt": createdAt,
         "perspective": perspective,
         "max_levels": max_levels,
         "min_words_per_level": min_words_per_level,
         "max_words_per_level": max_words_per_level,
-        "image_s3_bucket": s3_image_details["bucket_name"],
-        "image_s3_key": s3_image_details["s3_key"],
+        "image_s3_bucket": image_bucket_name,
+        "image_s3_key": image_s3_key,
         "nodes": []
     }
 
@@ -99,7 +103,7 @@ async def start_adventure(adventure: AdventureCreate, token: Annotated[str, Depe
     result = await adventure_collection.insert_one(adventure)
 
     node= {
-        "createdAt": datetime.utcnow(),
+        "createdAt": createdAt,
         "prev_option_index": None,
         "prev_option_text": None,
         "text": new_story["text"],
@@ -108,8 +112,15 @@ async def start_adventure(adventure: AdventureCreate, token: Annotated[str, Depe
 
     # Append Node to story
     node_result = await update_adventure_nodes(str(result.inserted_id), node)
+    image_url = await generate_presigned_url(image_bucket_name, image_s3_key, expiration=3600)
+    return {
+    "adventure_id": str(result.inserted_id),
+    "title": new_story["title"],
+    "synopsis": new_story["synopsis"],
+    "createdAt": createdAt,
+    "coverImageURL": image_url
 
-    return {"adventure_id": str(result.inserted_id)}
+    }
     #response = RedirectResponse(url="/", status_code=303)
     #return(response)
 

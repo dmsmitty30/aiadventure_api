@@ -1,7 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, AnyHttpUrl
 from typing import Optional
 from enum import Enum
-import datetime
+from datetime import datetime
 
 # Step 1: Define an Enum
 class AdventurePhase(Enum):
@@ -77,8 +77,12 @@ class AdventureTruncate(AdventureBase):
     node_index: int # ID of the Adventure Node to truncate to.
 
 class AdventureResponse(AdventureBase):
-    adventure_id: str  # MongoDB IDs are typically strings
-    node_index: Optional[int] = None #node_index returned also, when a new node is created. Otherwise, just the adventure_id.
+    adventure_id: Optional[str]  # MongoDB IDs are typically strings
+    title: Optional[str] = None
+    synopsis: Optional[str] = None
+    createdAt: Optional[datetime] = None
+    coverImageURL: Optional[str] = None
+    node_index: Optional[int] = None #node_index returned also, when a new node is created.
 
 class NodeCreate(AdventureBase):
     adventure_id: str
