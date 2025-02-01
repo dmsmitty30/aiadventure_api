@@ -2,6 +2,7 @@ import asyncio
 from openai import OpenAI
 from pydantic import BaseModel
 import os
+from dotenv import load_dotenv
 #import re
 import boto3
 import requests
@@ -9,10 +10,13 @@ import mimetypes
 import os
 from urllib.parse import urlparse
 from app.services import image_service
+from PIL import Image
 
+load_dotenv()  # Load the .env file
 aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
 aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-client = OpenAI(api_key="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")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key)
 bucket_name = "adventureappdms"
 
 async def askDallE_structured(prompt: str, size: str):
@@ -103,8 +107,6 @@ async def upload_to_s3(image_data, bucket_name, file_name, ext):
 
     print(presigned_url)    
     return {"bucket_name": bucket_name, "s3_key": s3_key, "presigned_url": presigned_url}
-
-
 
 async def process_image(url):
     """

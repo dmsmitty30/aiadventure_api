@@ -14,3 +14,4 @@ SQLAlchemy==2.0.37
 python-jose==3.3.0
 python-multipart==0.0.20
 argon2_cffi==23.1.0
+pillow==11.1.0

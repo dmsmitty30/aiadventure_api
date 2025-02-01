@@ -3,13 +3,12 @@ from pydantic import BaseModel
 import os
 import re
 import asyncio
-
-#client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-client = OpenAI(api_key="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")
-import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv()  # Load the .env file
+
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key)
 
 def regexp_extract(string,pattern):
     match = re.search(pattern, string)
