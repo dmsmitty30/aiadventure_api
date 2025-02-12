@@ -5,7 +5,6 @@ from fastapi import HTTPException, Depends
 from jose import JWTError, jwt, JWTError
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
-import bcrypt
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 

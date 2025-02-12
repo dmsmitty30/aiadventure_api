@@ -2,10 +2,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.collection import Collection
 from typing import Optional
 from bson import ObjectId
+import os
 import uuid
+from dotenv import load_dotenv
 
-MONGO_URL = "mongodb://localhost:27017"  # Replace with your MongoDB URI
-DATABASE_NAME = "myapp_db"
+load_dotenv()
+MONGO_URL = os.getenv("MONGO_URL")
+DATABASE_NAME = os.getenv("DATABASE_NAME")
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DATABASE_NAME]

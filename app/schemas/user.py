@@ -25,8 +25,6 @@ class UserLoginResponse(BaseModel):
 class User(BaseModel):
     user_id: str
     username: str = Field(validation_alias=AliasChoices('username', 'email'))
-    full_name: str | None = None
-    disabled: bool | None = None
 
 
 class UserInDB(User):
