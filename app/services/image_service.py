@@ -17,7 +17,7 @@ aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
 aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key)
-bucket_name = "adventureappdms"
+bucket_name = os.getenv("IMAGE_BUCKET_NAME")
 
 async def askDallE_structured(prompt: str, size: str):
     try:
