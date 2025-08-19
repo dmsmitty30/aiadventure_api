@@ -6,9 +6,10 @@ from pydantic import BaseModel
 
 router = FastAPI()
 
+
 @router.post("/token")
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
-    user_dict =  await get_user_by_email(form_data.email)
+    user_dict = await get_user_by_email(form_data.email)
     if not user_dict:
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     user = UserInDB(**user_dict)

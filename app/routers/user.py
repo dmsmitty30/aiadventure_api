@@ -1,32 +1,37 @@
-from fastapi import FastAPI, Depends, APIRouter, HTTPException, Request
-from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import RedirectResponse
-from app.database import get_user_by_email
-from app.services.user_service import register_user, verify_password, hash_password, create_access_token
-from app.schemas.user import UserLogin, UserLoginResponse
-from bson.objectid import ObjectId
-from datetime import datetime, timedelta
 import json
-from jose import JWTError, jwt
-import httpx
-
+from datetime import datetime, timedelta
 from typing import Annotated
+
+import httpx
+from bson.objectid import ObjectId
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
+from fastapi.security import OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+
+from app.database import get_user_by_email
+from app.schemas.user import UserCreate, UserLogin, UserLoginResponse
+from app.services.user_service import (create_access_token, hash_password,
+                                       register_user, verify_password)
+
 router = APIRouter()
 
 
-
-@router.post("/register", response_model=UserLoginResponse) #todo
-async def register(user: UserLogin):
+@router.post("/register", response_model=UserLoginResponse)
+async def register(user: UserCreate):
     try:
-        new_user_id = await register_user(user.email, user.password)
+        new_user_id = await register_user(user.email, user.password, user.role.value)
         print(new_user_id)
-        access_token = create_access_token( data={"sub": str(new_user_id)} )
+        access_token = create_access_token(data={"sub": str(new_user_id)})
         print(access_token)
         return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
-        raise HTTPException(status_code=409, detail={"status": "error", "error_message": str(e)})
+        raise HTTPException(
+            status_code=409, detail={"status": "error", "error_message": str(e)}
+        )
 
-'''
+
+"""
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from jose import JWTError, jwt
@@ -81,6 +86,4 @@ async def login(form_data: UserLogin):
         data={"sub": str(user_in_db["_id"])}
     )
     #return {"StatusCode":200, "status":"success", "access_token":access_token}
-    return {"access_token": access_token, "token_type": "bearer"}'''
-
-
+    return {"access_token": access_token, "token_type": "bearer"}"""

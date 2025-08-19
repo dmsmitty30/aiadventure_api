@@ -12,6 +12,9 @@ async def test():
     prompt = f"Create a title image for a book titled '{adventure['title']}'. The style should mimic a 70's or 80's adventure novel. It should be an image only - no text, borders, or other content. The book synopsis is as follows:\n\n{adventure['synopsis']}"
     
     response = await askDallE_structured(prompt,"1024x1024")
+    if isinstance(response, dict) and "error" in response:
+        print(f"Error generating image: {response['error']}")
+        return
     image_url = response.data[0].url
     print(image_url)
 
@@ -22,10 +25,15 @@ async def test_process():
     prompt = f"Create a title image for a book titled '{adventure['title']}'. The style should mimic a 70's or 80's adventure novel. It should be an image only - no text, borders, or other content. The book synopsis is as follows:\n\n{adventure['synopsis']}"
     
     response = await askDallE_structured(prompt,"1024x1792")
+    if isinstance(response, dict) and "error" in response:
+        print(f"Error generating image: {response['error']}")
+        return
 
-    
     image_url = response.data[0].url
     uploaded_image = await process_image(image_url, bucket_name)
+    if isinstance(uploaded_image, dict) and "error" in uploaded_image:
+        print(f"Error processing image: {uploaded_image['error']}")
+        return
     print(uploaded_image)
 
 
