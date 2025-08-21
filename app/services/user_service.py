@@ -117,3 +117,20 @@ def decode_access_token(token: str):
         return user_id
     except JWTError:
         raise ValueError("Invalid token")
+
+
+async def delete_user(user_id: str) -> bool:
+    """Delete a user from the database."""
+    try:
+        from app.database import get_user_collection
+        from bson import ObjectId
+        
+        if not ObjectId.is_valid(user_id):
+            return False
+            
+        collection = await get_user_collection()
+        result = await collection.delete_one({"_id": ObjectId(user_id)})
+        return result.deleted_count > 0
+    except Exception as e:
+        print(f"Error deleting user {user_id}: {str(e)}")
+        return False

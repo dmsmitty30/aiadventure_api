@@ -1,7 +1,6 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
 
 import app.services.user_service as us
 from app.schemas.api_key import (APIKeyCreate, APIKeyList, APIKeyResponse,
@@ -10,16 +9,23 @@ from app.schemas.user import UserCreate
 from app.services.api_key_service import (deactivate_api_key, delete_api_key,
                                           generate_api_key, get_api_key_by_id,
                                           list_api_keys, update_api_key)
-from app.services.user_service import decode_access_token, register_user
+from app.services.user_service import register_user
+from app.services.auth_service import require_any_auth
 
 router = APIRouter()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+def extract_user_id(auth_result: dict) -> str:
+    """Extract user ID from auth_result, handling both user and API key authentication."""
+    if auth_result["type"] == "user":
+        return auth_result["id"]
+    else:
+        return auth_result["info"]["key_id"]
 
 
-async def verify_admin_token(token: Annotated[str, Depends(oauth2_scheme)]):
+async def verify_admin_token(auth_result: Annotated[dict, Depends(require_any_auth)]):
     """Verify that the user has admin privileges."""
-    user_id = us.decode_access_token(token)
+    user_id = extract_user_id(auth_result)
 
     # Check if user has admin role
     is_admin = await us.is_user_admin(user_id)
@@ -155,10 +161,45 @@ async def create_user_admin(
         raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
 
 
+@router.delete("/users/{user_id}")
+async def delete_user_admin(
+    user_id: str, admin_id: Annotated[str, Depends(verify_admin_token)]
+):
+    """Delete a user (admin only)"""
+    try:
+        # Prevent admin from deleting themselves
+        if user_id == admin_id:
+            raise HTTPException(
+                status_code=400, detail="Admin cannot delete themselves"
+            )
+        
+        # Check if user exists
+        user = await us.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Delete the user
+        success = await us.delete_user(user_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to delete user")
+        
+        return {
+            "message": "User deleted successfully",
+            "deleted_user_id": user_id,
+            "deleted_user_email": user.get("email", "Unknown")
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete user: {str(e)}"
+        )
+
+
 @router.get("/debug/user-role")
-async def debug_user_role(token: Annotated[str, Depends(oauth2_scheme)]):
+async def debug_user_role(auth_result: Annotated[dict, Depends(require_any_auth)]):
     """Debug endpoint to check user role (temporary)"""
-    user_id = us.decode_access_token(token)
+    user_id = extract_user_id(auth_result)
 
     # Get user details with more debugging
     user = await us.get_user_by_id(user_id)

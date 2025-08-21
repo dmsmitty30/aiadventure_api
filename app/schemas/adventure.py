@@ -87,15 +87,21 @@ class AdventureTruncate(AdventureBase):
     node_index: int  # ID of the Adventure Node to truncate to.
 
 
+class AdventureClone(BaseModel):
+    adventure_id: str  # The ID of the Adventure to clone
+
+
 class AdventureResponse(AdventureBase):
     adventure_id: Optional[str]  # MongoDB IDs are typically strings
     title: Optional[str] = None
     synopsis: Optional[str] = None
     createdAt: Optional[datetime] = None
     coverImageURL: Optional[str] = None
+    clone_of: Optional[str] = None  # ID of the adventure this was cloned from
     node_index: Optional[
         int
     ] = None  # node_index returned also, when a new node is created.
+    action: Optional[str] = None  # Action performed (e.g., "truncatedAdventure", "deleteAdventure")
 
 
 class NodeCreate(AdventureBase):

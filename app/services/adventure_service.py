@@ -37,8 +37,19 @@ async def get_adventure_for_user(adventure_id, user_id):
     adventure = await get_adventure_by_id(adventure_id)
     if not adventure:
         return 404
+    
+    # Check if user is admin
+    from app.services.user_service import is_user_admin
+    is_admin = await is_user_admin(user_id)
+    
+    # Admin users can access any adventure
+    if is_admin:
+        return adventure
+    
+    # Regular users can only access their own adventures or public ones
     if (not adventure.get("is_public")) and adventure.get("owner_id") != user_id:
         return 401
+    
     return adventure
 
 
@@ -50,6 +61,63 @@ async def get_full_story(adventure_id):
     for this_node in adventure_nodes:
         full_story_text = full_story_text + this_node["text"]
     return full_story_text
+
+
+async def clone_adventure(adventure_id: str, user_id: str):
+    """Creates a clone of an existing adventure."""
+    # Get the original adventure
+    original_adventure = await get_adventure_for_user(adventure_id, user_id)
+    
+    if original_adventure == 404:
+        raise Exception("Adventure not found")
+    if original_adventure == 401:
+        raise Exception("User not authorized to access this adventure")
+    
+    # Create a new adventure object with cloned data
+    from datetime import datetime
+    from app.database import create_adventure, update_adventure_nodes
+    
+    cloned_adventure = {
+        "owner_id": user_id,
+        "title": f"(copy) {original_adventure['title']}",
+        "synopsis": original_adventure['synopsis'],
+        "userPrompt": original_adventure.get('userPrompt', ''),
+        "createdAt": datetime.utcnow(),
+        "perspective": original_adventure.get('perspective', 'Second Person'),
+        "max_levels": original_adventure.get('max_levels', 10),
+        "min_words_per_level": original_adventure.get('min_words_per_level', 100),
+        "max_words_per_level": original_adventure.get('max_words_per_level', 200),
+        "nodes": [],
+        "clone_of": adventure_id,  # Reference to the original adventure
+    }
+    
+    # Copy image fields if they exist
+    if 'image_s3_bucket' in original_adventure and 'image_s3_key' in original_adventure:
+        cloned_adventure['image_s3_bucket'] = original_adventure['image_s3_bucket']
+        cloned_adventure['image_s3_key'] = original_adventure['image_s3_key']
+    
+    # Save the cloned adventure to database
+    result = await create_adventure(cloned_adventure)
+    
+    # Clone all nodes from the original adventure
+    if 'nodes' in original_adventure and original_adventure['nodes']:
+        for node in original_adventure['nodes']:
+            cloned_node = {
+                "createdAt": datetime.utcnow(),
+                "prev_option_index": node.get('prev_option_index'),
+                "prev_option_text": node.get('prev_option_text'),
+                "text": node.get('text', ''),
+                "options": node.get('options', []),
+            }
+            await update_adventure_nodes(str(result.inserted_id), cloned_node)
+    
+    return {
+        "adventure_id": str(result.inserted_id),
+        "title": cloned_adventure['title'],
+        "synopsis": cloned_adventure['synopsis'],
+        "createdAt": cloned_adventure['createdAt'],
+        "clone_of": adventure_id,
+    }
 
 
 async def generate_new_story(prompt, perspective, min_words, max_words):

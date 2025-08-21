@@ -1,14 +1,9 @@
-import asyncio
-from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch
-
 import pytest
-from bson import ObjectId
-from fastapi import FastAPI
+import asyncio
+from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
+from bson import ObjectId
 
-from app.database import get_api_key_collection, get_user_collection
-# Import your app components
 from app.main import app
 
 
@@ -21,240 +16,209 @@ def event_loop():
 
 
 @pytest.fixture
-def test_app():
-    """Create a test FastAPI application."""
-    return app
+def client():
+    """Test client for FastAPI app"""
+    return TestClient(app)
 
 
 @pytest.fixture
-def test_client(test_app):
-    """Create a test client for the FastAPI application."""
-    return TestClient(test_app)
-
-
-@pytest.fixture
-def mock_user_id():
-    """Generate a mock user ID."""
-    return str(ObjectId())
-
-
-@pytest.fixture
-def mock_adventure_id():
-    """Generate a mock adventure ID."""
-    return str(ObjectId())
-
-
-@pytest.fixture
-def mock_api_key_id():
-    """Generate a mock API key ID."""
-    return str(ObjectId())
-
-
-@pytest.fixture
-def sample_user_data():
-    """Sample user data for testing."""
-    return {
-        "email": "test@example.com",
-        "password": "secure_password_123",
-        "role": "user",
-        "createdAt": datetime.utcnow(),
-    }
-
-
-@pytest.fixture
-def sample_admin_user_data():
-    """Sample admin user data for testing."""
-    return {
-        "email": "admin@example.com",
-        "password": "admin_password_123",
-        "role": "admin",
-        "createdAt": datetime.utcnow(),
-    }
-
-
-@pytest.fixture
-def sample_api_key_data():
-    """Sample API key data for testing."""
-    return {"name": "Test API Key", "scopes": ["read", "write"], "expires_in_days": 30}
-
-
-@pytest.fixture
-def sample_adventure_data():
-    """Sample adventure data for testing."""
-    return {
-        "owner_id": str(ObjectId()),
-        "title": "Test Adventure",
-        "synopsis": "A test adventure for unit testing",
-        "userPrompt": "Create a test adventure",
-        "createdAt": datetime.utcnow(),
-        "perspective": "Second Person",
-        "max_levels": 5,
-        "min_words_per_level": 100,
-        "max_words_per_level": 200,
-        "nodes": [],
-    }
-
-
-@pytest.fixture
-def mock_jwt_token():
-    """Mock JWT token for testing."""
-    return "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.mock_jwt_token"
-
-
-@pytest.fixture
-def mock_api_key():
-    """Mock API key for testing."""
-    return "ak_test123456789"
-
-
-@pytest.fixture
-def mock_mongo_collection():
-    """Mock MongoDB collection for testing."""
-    collection = Mock()
-    collection.insert_one = AsyncMock()
-    collection.find_one = AsyncMock()
-    collection.find = AsyncMock()
-    collection.update_one = AsyncMock()
-    collection.delete_one = AsyncMock()
-    collection.count_documents = AsyncMock()
+def mock_mongodb_collection():
+    """Mock MongoDB collection for testing"""
+    collection = AsyncMock()
+    collection.find_one.return_value = None
+    collection.find.return_value = AsyncMock()
+    collection.insert_one.return_value = AsyncMock(inserted_id=ObjectId())
+    collection.update_one.return_value = AsyncMock(modified_count=1)
+    collection.delete_one.return_value = AsyncMock(deleted_count=1)
     return collection
 
 
 @pytest.fixture
 def mock_s3_client():
-    """Mock S3 client for testing."""
-    s3_client = Mock()
-    s3_client.upload_fileobj = AsyncMock()
-    s3_client.generate_presigned_url = AsyncMock(
-        return_value="https://example.com/presigned-url"
-    )
-    s3_client.download_fileobj = AsyncMock()
+    """Mock S3 client for testing"""
+    s3_client = AsyncMock()
+    s3_client.upload_fileobj.return_value = None
+    s3_client.generate_presigned_url.return_value = "https://test-bucket.s3.amazonaws.com/test-key"
     return s3_client
 
 
 @pytest.fixture
 def mock_openai_client():
-    """Mock OpenAI client for testing."""
-    openai_client = Mock()
-    openai_client.images.generate = AsyncMock()
-    openai_client.chat.completions.create = AsyncMock()
+    """Mock OpenAI client for testing"""
+    openai_client = MagicMock()
+    openai_client.chat.completions.create.return_value = MagicMock(
+        choices=[MagicMock(message=MagicMock(content='{"title": "Test Story", "nodes": []}'))]
+    )
+    openai_client.images.generate.return_value = MagicMock(
+        data=[MagicMock(url="http://test.com/image.jpg")]
+    )
     return openai_client
 
 
 @pytest.fixture
 def mock_pillow_image():
-    """Mock Pillow Image for testing."""
-    image = Mock()
-    image.convert = Mock(return_value=image)
-    image.crop = Mock(return_value=image)
-    image.resize = Mock(return_value=image)
-    image.save = Mock()
-    image.size = (1024, 1792)
-    return image
-
-
-# Database fixtures
-@pytest.fixture
-async def mock_user_collection():
-    """Mock user collection for testing."""
-    return mock_mongo_collection()
+    """Mock Pillow Image for testing"""
+    with patch('PIL.Image.open') as mock_open:
+        mock_image = MagicMock()
+        mock_image.resize.return_value = mock_image
+        mock_image.crop.return_value = mock_image
+        mock_image.save.return_value = None
+        mock_open.return_value = mock_image
+        yield mock_image
 
 
 @pytest.fixture
-async def mock_api_key_collection():
-    """Mock API key collection for testing."""
-    return mock_mongo_collection()
-
-
-@pytest.fixture
-async def mock_adventure_collection():
-    """Mock adventure collection for testing."""
-    return mock_mongo_collection()
-
-
-# Authentication fixtures
-@pytest.fixture
-def mock_auth_result_user():
-    """Mock authentication result for user."""
-    return {"type": "user", "id": str(ObjectId())}
-
-
-@pytest.fixture
-def mock_auth_result_api_key():
-    """Mock authentication result for API key."""
-    return {
-        "type": "api_key",
-        "info": {
-            "key_id": str(ObjectId()),
-            "name": "Test Key",
-            "scopes": ["read", "write"],
-            "created_at": datetime.utcnow(),
-            "expires_at": None,
-        },
-    }
-
-
-# Error fixtures
-@pytest.fixture
-def mock_http_exception():
-    """Mock HTTP exception for testing."""
-    from fastapi import HTTPException
-
-    return HTTPException(status_code=400, detail="Test error")
-
-
-@pytest.fixture
-def mock_validation_error():
-    """Mock validation error for testing."""
-    from pydantic import ValidationError
-
-    return ValidationError(errors=[], model=Mock())
-
-
-# Environment fixtures
-@pytest.fixture(autouse=True)
 def mock_env_vars():
-    """Mock environment variables for testing."""
-    import os
-
-    with patch.dict(
-        os.environ,
-        {
-            "MONGO_URL": "mongodb://localhost:27017/test",
-            "DATABASE_NAME": "test_db",
-            "JWT_SECRET_KEY": "test_secret_key",
-            "IMAGE_BUCKET_NAME": "test-image-bucket",
-            "AWS_ACCESS_KEY_ID": "test_access_key",
-            "AWS_SECRET_ACCESS_KEY": "test_secret_key",
-            "AWS_REGION": "us-east-1",
-            "OPENAI_API_KEY": "test_openai_key",
-        },
-    ):
+    """Mock environment variables for testing"""
+    with patch.dict('os.environ', {
+        'SECRET_KEY': 'test-secret-key',
+        'ALGORITHM': 'HS256',
+        'ACCESS_TOKEN_EXPIRE_MINUTES': '30',
+        'MONGODB_URL': 'mongodb://localhost:27017/test',
+        'DATABASE_NAME': 'test_db',
+        'OPENAI_API_KEY': 'test-openai-key',
+        'AWS_ACCESS_KEY_ID': 'test-access-key',
+        'AWS_SECRET_ACCESS_KEY': 'test-secret-key',
+        'AWS_REGION': 'us-east-1',
+        'IMAGE_BUCKET_NAME': 'test-image-bucket'
+    }):
         yield
 
 
-# Utility functions for testing
-def create_mock_response(status_code: int, data: dict = None):
-    """Create a mock HTTP response for testing."""
-    response = Mock()
-    response.status_code = status_code
-    if data:
-        response.json = Mock(return_value=data)
+@pytest.fixture
+def mock_http_response():
+    """Mock HTTP response for testing"""
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {"success": True}
+    response.content = b"test content"
     return response
 
 
-def create_mock_request(headers: dict = None, query_params: dict = None):
-    """Create a mock HTTP request for testing."""
-    request = Mock()
-    request.headers = headers or {}
-    request.query_params = query_params or {}
+@pytest.fixture
+def mock_http_request():
+    """Mock HTTP request for testing"""
+    request = MagicMock()
+    request.headers = {"Authorization": "Bearer test-token"}
+    request.cookies = {"access_token": "test-token"}
     return request
 
 
-# Cleanup fixtures
-@pytest.fixture(autouse=True)
-async def cleanup_test_data():
-    """Clean up test data after each test."""
-    yield
-    # Add cleanup logic here if needed
-    pass
+@pytest.fixture
+def sample_user_data():
+    """Sample user data for testing"""
+    return {
+        "regular_user": {
+            "_id": ObjectId(),
+            "email": "user@test.com",
+            "role": "user",
+            "createdAt": "2025-01-01T00:00:00Z"
+        },
+        "admin_user": {
+            "_id": ObjectId(),
+            "email": "admin@test.com",
+            "role": "admin",
+            "createdAt": "2025-01-01T00:00:00Z"
+        }
+    }
+
+
+    @pytest.fixture
+    def sample_adventure_data():
+        """Sample adventure data for testing"""
+        return {
+            "basic_adventure": {
+                "_id": ObjectId(),
+                "title": "Test Adventure",
+                "owner_id": str(ObjectId()),
+                "nodes": [{"id": 0, "text": "Start", "options": ["Continue"]}],
+                "createdAt": "2025-01-01T00:00:00Z"
+            },
+            "cloned_adventure": {
+                "_id": ObjectId(),
+                "title": "(copy) Test Adventure",
+                "owner_id": str(ObjectId()),
+                "clone_of": str(ObjectId()),
+                "nodes": [{"id": 0, "text": "Start", "options": ["Continue"]}],
+                "createdAt": "2025-01-01T00:00:00Z"
+            }
+        }
+
+
+@pytest.fixture
+def mock_auth_service():
+    """Mock authentication service for testing"""
+    with patch('app.services.auth_service.require_any_auth') as mock_auth:
+        mock_auth.return_value = {"type": "user", "id": str(ObjectId())}
+        yield mock_auth
+
+
+@pytest.fixture
+def mock_user_service():
+    """Mock user service for testing"""
+    with patch('app.services.user_service.get_user_by_id') as mock_get_user, \
+         patch('app.services.user_service.is_user_admin') as mock_is_admin:
+        
+        mock_get_user.return_value = {
+            "_id": str(ObjectId()),
+            "email": "test@example.com",
+            "role": "user"
+        }
+        mock_is_admin.return_value = False
+        
+        yield {
+            "get_user": mock_get_user,
+            "is_admin": mock_is_admin
+        }
+
+
+@pytest.fixture
+def mock_adventure_service():
+    """Mock adventure service for testing"""
+    with patch('app.services.adventure_service.fetch_adventures') as mock_fetch, \
+         patch('app.services.adventure_service.get_adventure_for_user') as mock_get, \
+         patch('app.services.adventure_service.clone_adventure') as mock_clone:
+        
+        mock_fetch.return_value = []
+        mock_get.return_value = {
+            "_id": ObjectId(),
+            "title": "Test Adventure",
+            "owner_id": str(ObjectId()),
+            "nodes": []
+        }
+        mock_clone.return_value = {
+            "adventure_id": str(ObjectId()),
+            "title": "(copy) Test Adventure"
+        }
+        
+        yield {
+            "fetch": mock_fetch,
+            "get": mock_get,
+            "clone": mock_clone
+        }
+
+
+@pytest.fixture
+def mock_api_key_service():
+    """Mock API key service for testing"""
+    with patch('app.services.api_key_service.list_api_keys') as mock_list, \
+         patch('app.services.api_key_service.create_api_key') as mock_create, \
+         patch('app.services.api_key_service.verify_api_key') as mock_verify:
+        
+        mock_list.return_value = []
+        mock_create.return_value = {
+            "key_id": str(ObjectId()),
+            "api_key": "ak_test_key_123",
+            "created_at": "2025-01-01T00:00:00Z"
+        }
+        mock_verify.return_value = {
+            "key_id": str(ObjectId()),
+            "user_id": str(ObjectId()),
+            "is_active": True
+        }
+        
+        yield {
+            "list": mock_list,
+            "create": mock_create,
+            "verify": mock_verify
+        }

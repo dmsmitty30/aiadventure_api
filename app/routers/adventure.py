@@ -5,7 +5,6 @@ from typing import Annotated
 from bson.objectid import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
-from fastapi.security import OAuth2PasswordBearer
 
 import app.services.user_service as us
 from app.database import (delete_adventure, get_adventure_by_id,
@@ -14,7 +13,7 @@ from app.database import (delete_adventure, get_adventure_by_id,
 from app.schemas.adventure import (AdventureBase, AdventureCreate,
                                    AdventureDelete, AdventureList,
                                    AdventureNodes, AdventureResponse,
-                                   AdventureTruncate, NodeCreate)
+                                   AdventureTruncate, AdventureClone, NodeCreate)
 from app.schemas.image import ImageResponse
 from app.services.adventure_service import (fetch_adventures,
                                             generate_new_node,
@@ -24,18 +23,43 @@ from app.services.image_service import (askDallE_structured,
                                         generate_presigned_url, process_image,
                                         process_thumbnail_from_s3)
 from app.services.user_service import get_current_user
+from app.services.auth_service import require_any_auth
 
 router = APIRouter()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+@router.get("/debug-auth")
+async def debug_auth(auth_result: Annotated[dict, Depends(require_any_auth)]):
+    """Debug endpoint to test authentication."""
+    print("=" * 50)
+    print("🎯 DEBUG-AUTH ENDPOINT CALLED")
+    print("=" * 50)
+    print(f"auth_result: {auth_result}")
+    user_id = extract_user_id(auth_result)
+    print(f"extracted user_id: {user_id}")
+    print("=" * 50)
+    
+    return {
+        "message": "Authentication successful!",
+        "auth_result": auth_result,
+        "user_id": user_id
+    }
+
+
+def extract_user_id(auth_result: dict) -> str:
+    """Extract user ID from auth_result, handling both user and API key authentication."""
+    if auth_result["type"] == "user":
+        return auth_result["id"]
+    else:
+        return auth_result["info"]["key_id"]
 
 
 @router.get("/list", response_model=AdventureList)
-async def adventure_list(token: Annotated[str, Depends(oauth2_scheme)]):
-    print(f"TOKEN: {token}")
-    owner_id = us.decode_access_token(token)
-    print(f"OWNER:{owner_id}")
-    response = await fetch_adventures(owner_id)
+async def adventure_list(auth_result: Annotated[dict, Depends(require_any_auth)]):
+    print(f"AUTH RESULT: {auth_result}")
+    user_id = extract_user_id(auth_result)
+    print(f"USER ID:{user_id}")
+    response = await fetch_adventures(user_id)
     print(f"RESPONSE {response}")
     response_array = []
     if len(response) > 0:
@@ -60,9 +84,9 @@ async def adventure_list(token: Annotated[str, Depends(oauth2_scheme)]):
 
 @router.get("/nodes/{adventure_id}", response_model=AdventureNodes)
 async def adventure_nodes(
-    adventure_id: str, token: Annotated[str, Depends(oauth2_scheme)]
+    adventure_id: str, auth_result: Annotated[dict, Depends(require_any_auth)]
 ):
-    user_id = us.decode_access_token(token)
+    user_id = extract_user_id(auth_result)
     response = await get_adventure_for_user(adventure_id, user_id)
 
     if response == 401:
@@ -75,10 +99,10 @@ async def adventure_nodes(
 
 @router.post("/start", response_model=AdventureResponse)
 async def start_adventure(
-    adventure: AdventureCreate, token: Annotated[str, Depends(oauth2_scheme)]
+    adventure: AdventureCreate, auth_result: Annotated[dict, Depends(require_any_auth)]
 ):
     """Starts a new adventure."""
-    user_id = us.decode_access_token(token)
+    user_id = extract_user_id(auth_result)
     # Generate story structure
     prompt = adventure.prompt
     max_levels = adventure.max_levels
@@ -178,11 +202,31 @@ async def start_adventure(
     # return(response)
 
 
-@router.put("/continue", response_model=AdventureResponse)
-async def continue_adventure(
-    adventure: NodeCreate, token: Annotated[str, Depends(oauth2_scheme)]
+@router.post("/clone", response_model=AdventureResponse)
+async def clone_adventure_endpoint(
+    adventure: AdventureClone, auth_result: Annotated[dict, Depends(require_any_auth)]
 ):
-    user_id = us.decode_access_token(token)
+    """Clones an existing adventure."""
+    user_id = extract_user_id(auth_result)
+    
+    try:
+        from app.services.adventure_service import clone_adventure
+        result = await clone_adventure(adventure.adventure_id, user_id)
+        return result
+    except Exception as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail="Adventure not found")
+        elif "not authorized" in str(e).lower():
+            raise HTTPException(status_code=401, detail="User not authorized to access this adventure")
+        else:
+            raise HTTPException(status_code=500, detail=f"Failed to clone adventure: {str(e)}")
+
+
+@router.post("/continue", response_model=AdventureResponse)
+async def continue_adventure(
+    adventure: NodeCreate, auth_result: Annotated[dict, Depends(require_any_auth)]
+):
+    user_id = extract_user_id(auth_result)
     response = await get_adventure_for_user(adventure.adventure_id, user_id)
     print(response)
     if response == 401:
@@ -228,32 +272,52 @@ async def continue_adventure(
     # return(response)
 
 
-@router.delete("/delete", response_model=AdventureResponse)
+@router.delete("/delete/{adventure_id}", response_model=AdventureResponse)
 async def adventure_delete(
-    adventure: AdventureDelete, token: Annotated[str, Depends(oauth2_scheme)]
+    adventure_id: str, auth_result: Annotated[dict, Depends(require_any_auth)]
 ):
-    user_id = us.decode_access_token(token)
-    response = await get_adventure_for_user(adventure.adventure_id, user_id)
+    user_id = extract_user_id(auth_result)
+    response = await get_adventure_for_user(adventure_id, user_id)
     if response == 404:
         raise HTTPException(status_code=404, detail="Content Not Found")
-    if response == 401 or us.decode_access_token(token) != response["owner_id"]:
+    if response == 401:
+        raise HTTPException(
+            status_code=401, detail="User not authorized to delete this content."
+        )
+    
+    # Check if user is admin
+    from app.services.user_service import is_user_admin
+    is_admin = await is_user_admin(user_id)
+    
+    # Admin users can delete any adventure, regular users can only delete their own
+    if not is_admin and user_id != response["owner_id"]:
         raise HTTPException(
             status_code=401, detail="User not authorized to delete this content."
         )
 
-    response = await delete_adventure(adventure.adventure_id)
-    return {"action": "deleteAdventure", "adventure_id": adventure.adventure_id}
+    response = await delete_adventure(adventure_id)
+    return {"action": "deleteAdventure", "adventure_id": adventure_id}
 
 
 @router.patch("/truncate", response_model=AdventureResponse)
 async def adventure_truncate(
-    adventure: AdventureTruncate, token: Annotated[str, Depends(oauth2_scheme)]
+    adventure: AdventureTruncate, auth_result: Annotated[dict, Depends(require_any_auth)]
 ):
-    user_id = us.decode_access_token(token)
+    user_id = extract_user_id(auth_result)
     response = await get_adventure_for_user(adventure.adventure_id, user_id)
     if response == 404:
         raise HTTPException(status_code=404, detail="Content Not Found")
-    if response == 401 or us.decode_access_token(token) != response["owner_id"]:
+    if response == 401:
+        raise HTTPException(
+            status_code=401, detail="User not authorized to truncate this content."
+        )
+    
+    # Check if user is admin
+    from app.services.user_service import is_user_admin
+    is_admin = await is_user_admin(user_id)
+    
+    # Admin users can truncate any adventure, regular users can only truncate their own
+    if not is_admin and user_id != response["owner_id"]:
         raise HTTPException(
             status_code=401, detail="User not authorized to truncate this content."
         )
@@ -267,12 +331,12 @@ async def adventure_truncate(
 @router.put("/coverImage/update/{adventure_id}", response_model=ImageResponse)
 async def create_or_update_cover_image(
     adventure_id: str,
-    token: Annotated[str, Depends(oauth2_scheme)],
+    auth_result: Annotated[dict, Depends(require_any_auth)],
     force_regenerate: bool = False,
     custom_prompt: str = None,
 ):
     """Create or update a cover image for an existing adventure."""
-    user_id = us.decode_access_token(token)
+    user_id = extract_user_id(auth_result)
 
     # Get the adventure and verify user ownership
     response = await get_adventure_for_user(adventure_id, user_id)
@@ -363,7 +427,7 @@ async def adventure_cover(adventure: AdventureBase, token: Annotated[str, Depend
 @router.get("/coverImage/{adventure_id}")
 async def get_cover_image_thumbnail(
     adventure_id: str,
-    token: Annotated[str, Depends(oauth2_scheme)],
+    auth_result: Annotated[dict, Depends(require_any_auth)],
     width: int = 300,
     height: int = 200,
     crop: str = "center",  # center, top, bottom, left, right, top-left, top-right, bottom-left, bottom-right
@@ -371,7 +435,7 @@ async def get_cover_image_thumbnail(
     use_cache: bool = True,
 ):
     """Get a cropped and scaled version of the adventure's cover image for thumbnails/previews."""
-    user_id = us.decode_access_token(token)
+    user_id = extract_user_id(auth_result)
 
     # Get the adventure and verify user ownership
     response = await get_adventure_for_user(adventure_id, user_id)
