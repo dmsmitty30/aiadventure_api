@@ -11,6 +11,7 @@ from app.services.api_key_service import (deactivate_api_key, delete_api_key,
                                           list_api_keys, update_api_key)
 from app.services.user_service import register_user
 from app.services.auth_service import require_any_auth
+from app.security import sanitize_name, sanitize_email, validate_string_length, validate_positive_integer
 
 router = APIRouter()
 
@@ -41,12 +42,26 @@ async def create_api_key(
 ):
     """Create a new API key (admin only)"""
     try:
+        # Sanitize and validate inputs
+        name = sanitize_name(key_data.name)
+        scopes = [sanitize_name(scope) for scope in key_data.scopes] if key_data.scopes else []
+        expires_in_days = None
+        
+        if key_data.expires_in_days is not None:
+            expires_in_days = validate_positive_integer(
+                key_data.expires_in_days, 
+                max_value=365, 
+                field_name="Expires in days"
+            )
+        
         api_key = await generate_api_key(
-            name=key_data.name,
-            scopes=key_data.scopes,
-            expires_in_days=key_data.expires_in_days,
+            name=name,
+            scopes=scopes,
+            expires_in_days=expires_in_days,
         )
         return api_key
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to create API key: {str(e)}"

@@ -5,6 +5,8 @@ from typing import Annotated
 from bson.objectid import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 import app.services.user_service as us
 from app.database import (delete_adventure, get_adventure_by_id,
@@ -24,26 +26,13 @@ from app.services.image_service import (askDallE_structured,
                                         process_thumbnail_from_s3)
 from app.services.user_service import get_current_user
 from app.services.auth_service import require_any_auth
+from app.security import sanitize_prompt, validate_positive_integer
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/debug-auth")
-async def debug_auth(auth_result: Annotated[dict, Depends(require_any_auth)]):
-    """Debug endpoint to test authentication."""
-    print("=" * 50)
-    print("🎯 DEBUG-AUTH ENDPOINT CALLED")
-    print("=" * 50)
-    print(f"auth_result: {auth_result}")
-    user_id = extract_user_id(auth_result)
-    print(f"extracted user_id: {user_id}")
-    print("=" * 50)
-    
-    return {
-        "message": "Authentication successful!",
-        "auth_result": auth_result,
-        "user_id": user_id
-    }
+# Debug endpoint removed for security
 
 
 def extract_user_id(auth_result: dict) -> str:
@@ -56,11 +45,8 @@ def extract_user_id(auth_result: dict) -> str:
 
 @router.get("/list", response_model=AdventureList)
 async def adventure_list(auth_result: Annotated[dict, Depends(require_any_auth)]):
-    print(f"AUTH RESULT: {auth_result}")
     user_id = extract_user_id(auth_result)
-    print(f"USER ID:{user_id}")
     response = await fetch_adventures(user_id)
-    print(f"RESPONSE {response}")
     response_array = []
     if len(response) > 0:
         for a in response:
@@ -78,7 +64,6 @@ async def adventure_list(auth_result: Annotated[dict, Depends(require_any_auth)]
                     "numNodes   ": a["numNodes"],
                 }
             )
-    print("RETURNING!!!")
     return {"adventures": response_array}
 
 
@@ -98,16 +83,26 @@ async def adventure_nodes(
 
 
 @router.post("/start", response_model=AdventureResponse)
+@limiter.limit("10/hour")  # Limit story generation to prevent OpenAI API abuse
 async def start_adventure(
-    adventure: AdventureCreate, auth_result: Annotated[dict, Depends(require_any_auth)]
+    request: Request, adventure: AdventureCreate, auth_result: Annotated[dict, Depends(require_any_auth)]
 ):
     """Starts a new adventure."""
     user_id = extract_user_id(auth_result)
-    # Generate story structure
-    prompt = adventure.prompt
-    max_levels = adventure.max_levels
-    min_words_per_level = adventure.min_words_per_level
-    max_words_per_level = adventure.max_words_per_level
+    
+    # Sanitize and validate inputs
+    try:
+        prompt = sanitize_prompt(adventure.prompt)
+        max_levels = validate_positive_integer(adventure.max_levels, max_value=20, field_name="Max levels")
+        min_words_per_level = validate_positive_integer(adventure.min_words_per_level, max_value=1000, field_name="Min words per level")
+        max_words_per_level = validate_positive_integer(adventure.max_words_per_level, max_value=2000, field_name="Max words per level")
+        
+        if min_words_per_level >= max_words_per_level:
+            raise ValueError("Min words per level must be less than max words per level")
+            
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
     perspective = adventure.perspective.value
     coverimage = adventure.coverimage
 

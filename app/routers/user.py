@@ -13,6 +13,7 @@ from app.database import get_user_by_email
 from app.schemas.user import UserCreate, UserLogin, UserLoginResponse
 from app.services.user_service import (create_access_token, hash_password,
                                        register_user, verify_password)
+from app.security import sanitize_email, validate_string_length
 
 router = APIRouter()
 
@@ -20,11 +21,15 @@ router = APIRouter()
 @router.post("/register", response_model=UserLoginResponse)
 async def register(user: UserCreate):
     try:
-        new_user_id = await register_user(user.email, user.password, user.role.value)
-        print(new_user_id)
+        # Sanitize and validate inputs
+        email = sanitize_email(user.email)
+        password = validate_string_length(user.password, min_length=8, max_length=128, field_name="Password")
+        
+        new_user_id = await register_user(email, password, user.role.value)
         access_token = create_access_token(data={"sub": str(new_user_id)})
-        print(access_token)
         return {"access_token": access_token, "token_type": "bearer"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=409, detail={"status": "error", "error_message": str(e)}

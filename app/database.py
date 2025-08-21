@@ -26,7 +26,6 @@ async def get_user_by_id(user_id) -> Collection:
 
         # Validate ObjectId
         if not ObjectId.is_valid(user_id):
-            print(f"Invalid ObjectId: {user_id}")
             return None
 
         # Convert to ObjectId
@@ -36,7 +35,6 @@ async def get_user_by_id(user_id) -> Collection:
         user = await user_collection.find_one({"_id": object_id})
 
         if not user:
-            print(f"No user found with ID: {user_id}")
             return None
         else:
             # Convert ObjectId to string and remove sensitive fields
@@ -47,10 +45,8 @@ async def get_user_by_id(user_id) -> Collection:
                 elif k != "hashed_password":
                     safe_user[k] = v
 
-            print(f"Found user: {safe_user}")
             return safe_user
     except Exception as e:
-        print(f"Error in get_user_by_id: {str(e)}")
         return None
 
 

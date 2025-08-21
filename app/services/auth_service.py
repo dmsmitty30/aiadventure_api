@@ -26,34 +26,14 @@ async def get_current_user_or_api_key(
     Returns either user_id (for JWT) or key_info (for API key).
     """
     try:
-        print("=" * 50)
-        print("🔍 AUTH DEBUG START")
-        print("=" * 50)
-        print(f"DEBUG: credentials received: {credentials}")
-        print(f"DEBUG: credentials type: {type(credentials)}")
-        print(f"DEBUG: credentials.credentials: {credentials.credentials}")
-        print(f"DEBUG: credentials.scheme: {credentials.scheme}")
-        print("=" * 50)
-        
-        # Also log to FastAPI's logging system
-        logger.info("🔍 AUTH DEBUG START")
-        logger.info(f"DEBUG: credentials received: {credentials}")
-        logger.info(f"DEBUG: credentials type: {type(credentials)}")
-        logger.info(f"DEBUG: credentials.credentials: {credentials.credentials}")
-        logger.info(f"DEBUG: credentials.scheme: {credentials.scheme}")
-        
         token = credentials.credentials
 
         # Try JWT token first
-        print(f"DEBUG: Checking if token starts with 'eyJ': {token.startswith('eyJ')}")
         if token.startswith("eyJ"):  # JWT tokens typically start with "eyJ"
-            print("DEBUG: Token appears to be JWT, attempting to decode...")
             try:
                 user_id = decode_access_token(token)
-                print(f"DEBUG: Successfully decoded JWT, user_id: {user_id}")
                 return {"type": "user", "id": user_id}
             except Exception as e:
-                print(f"DEBUG: Failed to decode JWT: {str(e)}")
                 pass
 
         # Try API key
@@ -70,10 +50,9 @@ async def get_current_user_or_api_key(
         )
         
     except Exception as e:
-        print(f"ERROR in get_current_user_or_api_key: {str(e)}")
-        logger.error(f"ERROR in get_current_user_or_api_key: {str(e)}")
+        logger.error(f"Authentication error: {str(e)}")
         raise HTTPException(
-            status_code=500, detail=f"Authentication error: {str(e)}"
+            status_code=401, detail="Authentication required. Provide either JWT token or API key."
         )
 
 

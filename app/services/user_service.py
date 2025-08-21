@@ -14,11 +14,15 @@ load_dotenv()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
+# Security: No fallback for SECRET_KEY - fail fast if not set
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is required for security")
+
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(
-    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")
-)  # 12 weeks default
+    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
+)  # 24 hours default (was 12 weeks - security risk)
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 
